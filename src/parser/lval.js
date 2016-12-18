@@ -12,6 +12,7 @@ pp.toAssignable = function (node, isBinding, contextDescription) {
   if (node) {
     switch (node.type) {
       case "Identifier":
+      case "PrivateName":
       case "ObjectPattern":
       case "ArrayPattern":
       case "AssignmentPattern":
@@ -202,6 +203,7 @@ pp.parseMaybeDefault = function (startPos, startLoc, left) {
 
 pp.checkLVal = function (expr, isBinding, checkClashes, contextDescription) {
   switch (expr.type) {
+    case "PrivateName":
     case "Identifier":
       this.checkReservedWord(expr.name, expr.start, false, true);
 

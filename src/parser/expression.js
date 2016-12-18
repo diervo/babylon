@@ -277,6 +277,7 @@ pp.parseExprSubscripts = function (refShorthandDefaultPos) {
 };
 
 pp.parseSubscripts = function (base, startPos, startLoc, noCalls) {
+  const hasClassPrivateProps = this.hasPlugin("classPrivateProperties");
   for (;;) {
     if (!noCalls && this.eat(tt.doubleColon)) {
       let node = this.startNodeAt(startPos, startLoc);
@@ -286,7 +287,7 @@ pp.parseSubscripts = function (base, startPos, startLoc, noCalls) {
     } else if (this.eat(tt.dot)) {
       let node = this.startNodeAt(startPos, startLoc);
       node.object = base;
-      node.property = this.parseIdentifier(true);
+      node.property = hasClassPrivateProps ? this.parsePrivateName(true) : this.parseIdentifier(true);
       node.computed = false;
       base = this.finishNode(node, "MemberExpression");
     } else if (this.eat(tt.bracketL)) {
@@ -496,6 +497,13 @@ pp.parseExprAtom = function (refShorthandDefaultPos) {
       node = this.startNode();
       this.takeDecorators(node);
       return this.parseClass(node, false);
+
+    case tt.hash:
+      if (this.hasPlugin("classPrivateProperties")) {
+        return this.parsePrivateName(true);
+      } else {
+        this.unexpected(null, tt.hash);
+      }
 
     case tt._new:
       return this.parseNew();
@@ -1012,6 +1020,15 @@ pp.parseIdentifier = function (liberal) {
 
   this.next();
   return this.finishNode(node, "Identifier");
+};
+
+pp.parsePrivateName = function (liberal) {
+  const isPrivate = this.eat(tt.hash);
+  const node = this.parseIdentifier(liberal);
+  if (isPrivate) {
+    node.type = "PrivateName";
+  }
+  return node;
 };
 
 pp.checkReservedWord = function (word, startLoc, checkKeywords, isBinding) {

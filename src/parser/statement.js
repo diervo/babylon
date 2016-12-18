@@ -652,13 +652,23 @@ pp.parseClassBody = function (node) {
       continue;
     }
 
-    let method = this.startNode();
+    let elementNode = this.startNode();
 
     // steal the decorators if there are any
     if (decorators.length) {
-      method.decorators = decorators;
+      elementNode.decorators = decorators;
       decorators = [];
     }
+
+    if (this.match(tt.hash)) { // Private property
+        if (!this.hasPlugin("classPrivateProperties")) {
+          return this.raise(this.state.pos, `Unexpected character '${tt.hash.label}'`);
+        }
+        this.next();
+        classBody.body.push(this.parsePrivateClassProperty(elementNode));
+        continue;
+    }
+
 
     let isConstructorCall = false;
     let isMaybeStatic = this.match(tt.name) && this.state.value === "static";
@@ -666,48 +676,48 @@ pp.parseClassBody = function (node) {
     let isGetSet = false;
     let isAsync = false;
 
-    this.parsePropertyName(method);
+    this.parsePropertyName(elementNode);
 
-    method.static = isMaybeStatic && !this.match(tt.parenL);
-    if (method.static) {
+    elementNode.static = isMaybeStatic && !this.match(tt.parenL);
+    if (elementNode.static) {
       isGenerator = this.eat(tt.star);
-      this.parsePropertyName(method);
+      this.parsePropertyName(elementNode);
     }
 
     if (!isGenerator) {
       if (this.isClassProperty()) {
-        classBody.body.push(this.parseClassProperty(method));
+        classBody.body.push(this.parseClassProperty(elementNode));
         continue;
       }
 
-      if (method.key.type === "Identifier" && !method.computed && this.hasPlugin("classConstructorCall") && method.key.name === "call" && this.match(tt.name) && this.state.value === "constructor") {
+      if (elementNode.key.type === "Identifier" && !elementNode.computed && this.hasPlugin("classConstructorCall") && elementNode.key.name === "call" && this.match(tt.name) && this.state.value === "constructor") {
         isConstructorCall = true;
-        this.parsePropertyName(method);
+        this.parsePropertyName(elementNode);
       }
     }
 
-    let isAsyncMethod = !this.match(tt.parenL) && !method.computed && method.key.type === "Identifier" && method.key.name === "async";
+    let isAsyncMethod = !this.match(tt.parenL) && !elementNode.computed && elementNode.key.type === "Identifier" && elementNode.key.name === "async";
     if (isAsyncMethod) {
       if (this.hasPlugin("asyncGenerators") && this.eat(tt.star)) isGenerator = true;
       isAsync = true;
-      this.parsePropertyName(method);
+      this.parsePropertyName(elementNode);
     }
 
-    method.kind = "method";
+    elementNode.kind = "method";
 
-    if (!method.computed) {
-      let { key } = method;
+    if (!elementNode.computed) {
+      let { key } = elementNode;
 
       // handle get/set methods
       // eg. class Foo { get bar() {} set bar() {} }
       if (!isAsync && !isGenerator && !this.isClassMutatorStarter() && key.type === "Identifier" && !this.match(tt.parenL) && (key.name === "get" || key.name === "set")) {
         isGetSet = true;
-        method.kind = key.name;
-        key = this.parsePropertyName(method);
+        elementNode.kind = key.name;
+        key = this.parsePropertyName(elementNode);
       }
 
       // disallow invalid constructors
-      let isConstructor = !isConstructorCall && !method.static && (
+      let isConstructor = !isConstructorCall && !elementNode.static && (
         (key.type === "Identifier" && key.name === "constructor") ||
         (key.type === "StringLiteral" && key.value === "constructor")
       );
@@ -716,12 +726,12 @@ pp.parseClassBody = function (node) {
         if (isGetSet) this.raise(key.start, "Constructor can't have get/set modifier");
         if (isGenerator) this.raise(key.start, "Constructor can't be a generator");
         if (isAsync) this.raise(key.start, "Constructor can't be an async function");
-        method.kind = "constructor";
+        elementNode.kind = "constructor";
         hadConstructor = true;
       }
 
       // disallow static prototype method
-      let isStaticPrototype = method.static && (
+      let isStaticPrototype = elementNode.static && (
         (key.type === "Identifier" && key.name === "prototype") ||
         (key.type === "StringLiteral" && key.value === "prototype")
       );
@@ -732,25 +742,25 @@ pp.parseClassBody = function (node) {
 
     // convert constructor to a constructor call
     if (isConstructorCall) {
-      if (hadConstructorCall) this.raise(method.start, "Duplicate constructor call in the same class");
-      method.kind = "constructorCall";
+      if (hadConstructorCall) this.raise(elementNode.start, "Duplicate constructor call in the same class");
+      elementNode.kind = "constructorCall";
       hadConstructorCall = true;
     }
 
       // disallow decorators on class constructors
-    if ((method.kind === "constructor" || method.kind === "constructorCall") && method.decorators) {
-      this.raise(method.start, "You can't attach decorators to a class constructor");
+    if ((elementNode.kind === "constructor" || elementNode.kind === "constructorCall") && elementNode.decorators) {
+      this.raise(elementNode.start, "You can't attach decorators to a class constructor");
     }
 
-    this.parseClassMethod(classBody, method, isGenerator, isAsync);
+    this.parseClassMethod(classBody, elementNode, isGenerator, isAsync);
 
     // get methods aren't allowed to have any parameters
     // set methods must have exactly 1 parameter
     if (isGetSet) {
-      let paramCount = method.kind === "get" ? 0 : 1;
-      if (method.params.length !== paramCount) {
-        let start = method.start;
-        if (method.kind === "get") {
+      let paramCount = elementNode.kind === "get" ? 0 : 1;
+      if (elementNode.params.length !== paramCount) {
+        let start = elementNode.start;
+        if (elementNode.kind === "get") {
           this.raise(start, "getter should have no params");
         } else {
           this.raise(start, "setter should have exactly one param");
@@ -766,6 +776,20 @@ pp.parseClassBody = function (node) {
   node.body = this.finishNode(classBody, "ClassBody");
 
   this.state.strict = oldStrict;
+};
+
+pp.parsePrivateClassProperty = function (node) {
+  this.parsePropertyName(node);
+  delete node.computed;
+
+  if (this.match(tt.eq)) {
+    this.next();
+    node.value = this.parseMaybeAssign();
+  } else {
+    node.value = null;
+  }
+  this.semicolon();
+  return this.finishNode(node, "ClassPrivateProperty");
 };
 
 pp.parseClassProperty = function (node) {

@@ -8,6 +8,7 @@ const frozenDeprecatedWildcardPluginList = [
   "doExpressions",
   "objectRestSpread",
   "decorators",
+  "classPrivateProperties",
   "classProperties",
   "exportExtensions",
   "asyncGenerators",

@@ -2,6 +2,7 @@ These are the core Babylon AST node types.
 
 - [Node objects](#node-objects)
 - [Identifier](#identifier)
+- [PrivateName](#privatename)
 - [Literals](#literals)
   - [RegexpLiteral](#regexpliteral)
   - [NullLiteral](#nullliteral)
@@ -91,6 +92,7 @@ These are the core Babylon AST node types.
   - [ClassBody](#classbody)
   - [ClassMethod](#classmethod)
   - [ClassProperty](#classproperty)
+  - [ClassPrivateProperty](#classprivateproperty)
   - [ClassDeclaration](#classdeclaration)
   - [ClassExpression](#classexpression)
   - [MetaProperty](#metaproperty)
@@ -145,6 +147,15 @@ interface Position {
 ```js
 interface Identifier <: Expression, Pattern {
   type: "Identifier";
+  name: string;
+}
+```
+
+# PrivateName
+
+```js
+interface PrivateName <: Expression, Pattern {
+  type: "PrivateName";
   name: string;
 }
 ```
@@ -1044,6 +1055,16 @@ interface ClassProperty <: Node {
   key: Identifier;
   value: Expression;
   computed: boolean;
+}
+```
+
+## ClassPrivateProperty
+
+```js
+interface ClassPrivateProperty <: Node {
+  type: "ClassPrivateProperty";
+  key: Identifier;
+  value: Expression;
 }
 ```
 

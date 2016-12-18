@@ -393,6 +393,7 @@ export default class Tokenizer {
 
   getTokenFromCode(code) {
     switch (code) {
+      case 35: ++this.state.pos; return this.finishToken(tt.hash);
       // The interpretation of a dot depends on whether it is followed
       // by a digit or another two dots.
       case 46: // '.'
