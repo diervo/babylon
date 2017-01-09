@@ -138,6 +138,8 @@ pp.parseMaybeAssign = function (noIn, refShorthandDefaultPos, afterLeftParse, re
     return this.finishNode(node, "AssignmentExpression");
   } else if (failOnShorthandAssign && refShorthandDefaultPos.start) {
     this.unexpected(refShorthandDefaultPos.start);
+  } else if (this.match(tt.hash)) {
+    this.raise(this.state.pos - 1, `Unexpected character '${tt.hash.label}'`);
   }
 
   return left;
@@ -287,7 +289,7 @@ pp.parseSubscripts = function (base, startPos, startLoc, noCalls) {
     } else if (this.eat(tt.dot)) {
       let node = this.startNodeAt(startPos, startLoc);
       node.object = base;
-      node.property = hasClassPrivateProps ? this.parsePrivateName(true) : this.parseIdentifier(true);
+      node.property = hasClassPrivateProps ? this.parsePrivateName() : this.parseIdentifier(true);
       node.computed = false;
       base = this.finishNode(node, "MemberExpression");
     } else if (this.eat(tt.bracketL)) {
@@ -500,7 +502,7 @@ pp.parseExprAtom = function (refShorthandDefaultPos) {
 
     case tt.hash:
       if (this.hasPlugin("classPrivateProperties")) {
-        return this.parsePrivateName(true);
+        return this.parsePrivateName();
       } else {
         this.unexpected(null, tt.hash);
       }
@@ -1022,9 +1024,9 @@ pp.parseIdentifier = function (liberal) {
   return this.finishNode(node, "Identifier");
 };
 
-pp.parsePrivateName = function (liberal) {
+pp.parsePrivateName = function () {
   const isPrivate = this.eat(tt.hash);
-  const node = this.parseIdentifier(liberal);
+  const node = this.parseIdentifier(true);
   if (isPrivate) {
     node.type = "PrivateName";
   }
