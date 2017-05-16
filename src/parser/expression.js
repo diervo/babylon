@@ -296,7 +296,7 @@ export default class ExpressionParser extends LValParser {
       } else if (this.eat(tt.dot)) {
         const node = this.startNodeAt(startPos, startLoc);
         node.object = base;
-        node.property = this.hasPlugin("classPrivateProperties") ? this.parsePrivateName(true) : this.parseIdentifier(true);
+        node.property = this.hasPlugin("classPrivateProperties") ? this.parsePrivateName() : this.parseIdentifier(true);
         node.computed = false;
         base = this.finishNode(node, "MemberExpression");
       } else if (this.eat(tt.bracketL)) {
@@ -546,9 +546,9 @@ export default class ExpressionParser extends LValParser {
     }
   }
 
-  parsePrivateName(liberal?: boolean): N.PrivateName | N.Identifier {
+  parsePrivateName(): N.PrivateName | N.Identifier {
     const isPrivate = this.eat(tt.hash);
-    const node = this.parseIdentifier(liberal);
+    const node = this.parseIdentifier(true);
     if (isPrivate) {
       // $FlowFixMe
       node.type = "PrivateName";
