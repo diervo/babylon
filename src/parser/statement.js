@@ -681,7 +681,7 @@ export default class StatementParser extends ExpressionParser {
         decorators = [];
       }
 
-      if (this.match(tt.hash)) { // Private property
+      if (this.hasPlugin("classPrivateProperties") && this.match(tt.hash)) { // Private property
         this.next();
         this.parsePropertyName(method);
         classBody.body.push(this.parsePrivateClassProperty(method));

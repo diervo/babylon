@@ -521,7 +521,7 @@ export default class ExpressionParser extends LValParser {
         if (this.hasPlugin("classPrivateProperties")) {
           return this.parsePrivateName(true);
         } else {
-          this.unexpected(null, tt.hash);
+          this.unexpected();
         }
 
       case tt._new:
