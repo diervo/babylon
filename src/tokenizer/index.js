@@ -405,15 +405,17 @@ export default class Tokenizer extends LocationParser {
 
   getTokenFromCode(code: number): void {
     switch (code) {
-      // The interpretation of a dot depends on whether it is followed
-      // by a digit or another two dots.
 
-      case 35:
+      case 35: // '#'
         if (this.hasPlugin("classPrivateProperties") && this.state.inClass) {
           ++this.state.pos; return this.finishToken(tt.hash);
         } else {
           this.raise(this.state.pos, `Unexpected character '${codePointToString(code)}'`);
         }
+        
+      // The interpretation of a dot depends on whether it is followed
+      // by a digit or another two dots.
+
       case 46: // '.'
         return this.readToken_dot();
 
