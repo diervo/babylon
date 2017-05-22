@@ -412,7 +412,7 @@ export default class Tokenizer extends LocationParser {
         } else {
           this.raise(this.state.pos, `Unexpected character '${codePointToString(code)}'`);
         }
-        
+
       // The interpretation of a dot depends on whether it is followed
       // by a digit or another two dots.
 

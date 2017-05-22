@@ -296,7 +296,7 @@ export default class ExpressionParser extends LValParser {
       } else if (this.eat(tt.dot)) {
         const node = this.startNodeAt(startPos, startLoc);
         node.object = base;
-        node.property = this.hasPlugin("classPrivateProperties") ? this.parsePrivateName() : this.parseIdentifier(true);
+        node.property = this.hasPlugin("classPrivateProperties") ? this.parseMaybePrivateName() : this.parseIdentifier(true);
         node.computed = false;
         base = this.finishNode(node, "MemberExpression");
       } else if (this.eat(tt.bracketL)) {
@@ -519,7 +519,7 @@ export default class ExpressionParser extends LValParser {
 
       case tt.hash:
         if (this.hasPlugin("classPrivateProperties")) {
-          return this.parsePrivateName();
+          return this.parseMaybePrivateName();
         } else {
           this.unexpected();
         }
@@ -546,14 +546,16 @@ export default class ExpressionParser extends LValParser {
     }
   }
 
-  parsePrivateName(): N.PrivateName | N.Identifier {
+  parseMaybePrivateName(): N.PrivateName | N.Identifier {
     const isPrivate = this.eat(tt.hash);
-    const node = this.parseIdentifier(true);
+
     if (isPrivate) {
-      // $FlowFixMe
-      node.type = "PrivateName";
+      const node = this.startNode();
+      node.name = this.parseIdentifier(true);
+      return this.finishNode(node, "PrivateName");
+    } else {
+      return this.parseIdentifier(true);
     }
-    return node;
   }
 
   parseFunctionExpression(): N.FunctionExpression | N.MetaProperty {
