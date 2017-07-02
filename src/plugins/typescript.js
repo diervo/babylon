@@ -1421,18 +1421,21 @@ export default (superClass: Class<Parser>): Class<Parser> =>
     parseClassMember(
       classBody: N.ClassBody,
       member: any,
-      state: { hadConstructor: boolean },
+      context: {
+        hadConstructor: boolean,
+        inCommaSeparatedClassFields: boolean,
+      },
     ): void {
       const accessibility = this.parseAccessModifier();
       if (accessibility) member.accessibility = accessibility;
 
-      super.parseClassMember(classBody, member, state);
+      super.parseClassMember(classBody, member, context);
     }
 
     parseClassMemberWithIsStatic(
       classBody: N.ClassBody,
       member: any,
-      state: { hadConstructor: boolean },
+      state: { hadConstructor: boolean, inCommaSeparatedClassFields: boolean },
       isStatic: boolean,
     ): void {
       const methodOrProp: N.ClassMethod | N.ClassProperty = member;

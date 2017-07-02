@@ -827,7 +827,12 @@ export default class StatementParser extends ExpressionParser {
   }
 
   isClassProperty(): boolean {
-    return this.match(tt.eq) || this.match(tt.semi) || this.match(tt.braceR);
+    return (
+      this.match(tt.eq) ||
+      this.match(tt.semi) ||
+      this.match(tt.braceR) ||
+      this.match(tt.comma)
+    );
   }
 
   isClassMethod(): boolean {
@@ -849,7 +854,10 @@ export default class StatementParser extends ExpressionParser {
     this.state.strict = true;
     this.state.classLevel++;
 
-    const state = { hadConstructor: false };
+    const context = {
+      hadConstructor: false,
+      inCommaSeparatedClassFields: false,
+    };
     let decorators: N.Decorator[] = [];
     const classBody: N.ClassBody = this.startNode();
 
@@ -859,13 +867,18 @@ export default class StatementParser extends ExpressionParser {
 
     while (!this.eat(tt.braceR)) {
       if (this.eat(tt.semi)) {
+        if (context.inCommaSeparatedClassFields) {
+          // class { foo,; }
+          this.unexpected(this.state.lastTokEnd);
+        }
+
         if (decorators.length > 0) {
           this.raise(
             this.state.lastTokEnd,
             "Decorators must not be followed by a semicolon",
           );
         }
-        continue;
+        continue; // Go up to keep consuming `;`
       }
 
       if (this.match(tt.at)) {
@@ -877,14 +890,17 @@ export default class StatementParser extends ExpressionParser {
 
       // steal the decorators if there are any
       if (decorators.length) {
-        member.decorators = decorators;
-        if (this.hasPlugin("decorators2")) {
+        member.decorators = decorators.slice();
+        // Reset only once in case we have comma separated fields
+        if (
+          this.hasPlugin("decorators2") &&
+          !context.inCommaSeparatedClassFields
+        ) {
           this.resetStartLocationFromNode(member, decorators[0]);
         }
-        decorators = [];
       }
 
-      this.parseClassMember(classBody, member, state);
+      this.parseClassMember(classBody, member, context);
 
       if (
         this.hasPlugin("decorators2") &&
@@ -896,6 +912,20 @@ export default class StatementParser extends ExpressionParser {
           member.start,
           "Stage 2 decorators may only be used with a class or a class method",
         );
+      }
+
+      // Weak check for classFields
+      if (member.kind == null) {
+        context.inCommaSeparatedClassFields = this.eat(tt.comma);
+      }
+
+      if (context.inCommaSeparatedClassFields) {
+        // Check for dangling commas class Foo { x, }
+        if (this.match(tt.braceR)) {
+          this.unexpected(this.state.lastTokStart);
+        }
+      } else {
+        decorators = [];
       }
     }
 
@@ -915,7 +945,7 @@ export default class StatementParser extends ExpressionParser {
   parseClassMember(
     classBody: N.ClassBody,
     member: N.ClassMember,
-    state: { hadConstructor: boolean },
+    context: { hadConstructor: boolean, inCommaSeparatedClassFields: boolean },
   ): void {
     // Use the appropriate variable to represent `member` once a more specific type is known.
     const memberAny: any = member;
@@ -935,6 +965,9 @@ export default class StatementParser extends ExpressionParser {
     if (this.match(tt.name) && this.state.value === "static") {
       const key = this.parseIdentifier(true); // eats 'static'
       if (this.isClassMethod()) {
+        if (context.inCommaSeparatedClassFields) {
+          this.unexpected();
+        }
         // a method named 'static'
         method.kind = "method";
         method.computed = false;
@@ -960,13 +993,13 @@ export default class StatementParser extends ExpressionParser {
       isStatic = true;
     }
 
-    this.parseClassMemberWithIsStatic(classBody, member, state, isStatic);
+    this.parseClassMemberWithIsStatic(classBody, member, context, isStatic);
   }
 
   parseClassMemberWithIsStatic(
     classBody: N.ClassBody,
     member: N.ClassMember,
-    state: { hadConstructor: boolean },
+    context: { hadConstructor: boolean, inCommaSeparatedClassFields: boolean },
     isStatic: boolean,
   ) {
     const memberAny: any = member;
@@ -1009,6 +1042,9 @@ export default class StatementParser extends ExpressionParser {
     this.parsePostMemberNameModifiers(methodOrProp);
 
     if (this.isClassMethod()) {
+      if (context.inCommaSeparatedClassFields) {
+        this.unexpected();
+      }
       // a normal method
       const isConstructor = this.isNonstaticConstructor(method);
       if (isConstructor) {
@@ -1026,10 +1062,10 @@ export default class StatementParser extends ExpressionParser {
         }
 
         // TypeScript allows multiple overloaded constructor declarations.
-        if (state.hadConstructor && !this.hasPlugin("typescript")) {
+        if (context.hadConstructor && !this.hasPlugin("typescript")) {
           this.raise(key.start, "Duplicate constructor in the same class");
         }
-        state.hadConstructor = true;
+        context.hadConstructor = true;
       }
 
       this.parseClassMethod(classBody, method, false, false, isConstructor);
@@ -1135,8 +1171,10 @@ export default class StatementParser extends ExpressionParser {
     } else {
       node.value = null;
     }
-    this.semicolon();
+
     this.state.inClassProperty = false;
+
+    this.parseMaybeCommaSeparator();
     return this.finishNode(node, "ClassPrivateProperty");
   }
 
@@ -1158,8 +1196,10 @@ export default class StatementParser extends ExpressionParser {
     } else {
       node.value = null;
     }
-    this.semicolon();
+
     this.state.inClassProperty = false;
+
+    this.parseMaybeCommaSeparator();
     return this.finishNode(node, "ClassProperty");
   }
 
@@ -1179,6 +1219,12 @@ export default class StatementParser extends ExpressionParser {
         "ClassMethod",
       ),
     );
+  }
+
+  parseMaybeCommaSeparator() {
+    if (!this.match(tt.comma)) {
+      this.semicolon();
+    }
   }
 
   parseClassId(
